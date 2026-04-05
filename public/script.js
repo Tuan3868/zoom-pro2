@@ -9,8 +9,9 @@ document.getElementById("info").innerText = name + " - Room: " + roomId;
 
 let localStream;
 let peers = {};
+let videoEnabled = true;
 
-// 🔥 ICE SERVER (QUAN TRỌNG NHẤT)
+// 🔥 ICE SERVER (xuyên mạng)
 const config = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -22,7 +23,7 @@ const config = {
   ],
 };
 
-// Lấy media (có cam thì lấy, không có vẫn ok)
+// 🎥 LẤY CAM + MIC (có cam thì lấy, không có vẫn vào được)
 async function getMedia() {
   try {
     return await navigator.mediaDevices.getUserMedia({
@@ -30,31 +31,66 @@ async function getMedia() {
       audio: true,
     });
   } catch {
-    return await navigator.mediaDevices.getUserMedia({ audio: true });
+    return await navigator.mediaDevices.getUserMedia({
+      audio: true,
+    });
   }
 }
 
+// 🚀 START
 getMedia().then((stream) => {
   localStream = stream;
   addVideo(stream, true);
 
-  socket.emit("join-room", {
-    roomId,
-    userId: socket.id,
-    name,
+  socket.emit("join-room", { roomId, name });
+});
+
+// 👥 NHẬN DANH SÁCH USER
+socket.on("all-users", (users) => {
+  users.forEach((user) => {
+    if (user.id !== socket.id) {
+      createPeer(user.id, true);
+    }
   });
 });
 
-socket.on("user-connected", ({ userId }) => {
-  createPeer(userId, true);
+// 👤 USER MỚI
+socket.on("user-connected", (user) => {
+  createPeer(user.id, false);
 });
 
-socket.on("user-disconnected", (userId) => {
-  if (peers[userId]) peers[userId].close();
+// 🔁 SIGNAL
+socket.on("signal", async ({ from, data }) => {
+  let peer = peers[from];
+
+  if (!peer) {
+    peer = createPeer(from, false);
+  }
+
+  if (data.sdp) {
+    await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
+    if (data.sdp.type === "offer") {
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+
+      socket.emit("signal", {
+        to: from,
+        data: { sdp: peer.localDescription },
+      });
+    }
+  }
+
+  if (data.candidate) {
+    await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
+  }
 });
 
+// 🔗 TẠO PEER
 function createPeer(userId, initiator) {
   const peer = new RTCPeerConnection(config);
+
+  peers[userId] = peer;
 
   localStream.getTracks().forEach((track) => {
     peer.addTrack(track, localStream);
@@ -66,19 +102,27 @@ function createPeer(userId, initiator) {
 
   peer.onicecandidate = (e) => {
     if (e.candidate) {
-      socket.emit("signal", { userId, candidate: e.candidate });
+      socket.emit("signal", {
+        to: userId,
+        data: { candidate: e.candidate },
+      });
     }
   };
 
-  socket.on("signal", (data) => {
-    if (data.candidate) {
-      peer.addIceCandidate(new RTCIceCandidate(data.candidate));
-    }
-  });
+  if (initiator) {
+    peer.createOffer().then((offer) => {
+      peer.setLocalDescription(offer);
+      socket.emit("signal", {
+        to: userId,
+        data: { sdp: offer },
+      });
+    });
+  }
 
-  peers[userId] = peer;
+  return peer;
 }
 
+// 🎥 HIỂN THỊ VIDEO
 function addVideo(stream, mute = false) {
   const video = document.createElement("video");
   video.srcObject = stream;
@@ -87,35 +131,51 @@ function addVideo(stream, mute = false) {
   videoGrid.append(video);
 }
 
-// 🎤 Mic
+// 🎤 MIC
 function toggleMic() {
   const track = localStream.getAudioTracks()[0];
   track.enabled = !track.enabled;
 }
 
-// 🚪 Rời
+// 📷 CAMERA (🔥 bạn vừa thêm)
+function toggleCam() {
+  if (!localStream) return;
+
+  videoEnabled = !videoEnabled;
+
+  localStream.getVideoTracks().forEach((track) => {
+    track.enabled = videoEnabled;
+  });
+}
+
+// 🚪 RỜI PHÒNG
 function leave() {
   window.location.href = "/";
 }
 
-// 🖥️ Share screen
+// 🖥️ SHARE MÀN HÌNH
 async function shareScreen() {
-  const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+  const screen = await navigator.mediaDevices.getDisplayMedia({
+    video: true,
+  });
 
   const track = screen.getVideoTracks()[0];
 
   for (let id in peers) {
     const sender = peers[id].getSenders().find((s) => s.track.kind === "video");
-    sender.replaceTrack(track);
+
+    if (sender) sender.replaceTrack(track);
   }
 
   track.onended = () => {
     const cam = localStream.getVideoTracks()[0];
+
     for (let id in peers) {
       const sender = peers[id]
         .getSenders()
         .find((s) => s.track.kind === "video");
-      sender.replaceTrack(cam);
+
+      if (sender) sender.replaceTrack(cam);
     }
   };
 }
