@@ -11,7 +11,10 @@ let localStream;
 let peers = {};
 let videoEnabled = true;
 
-// 🔥 ICE SERVER (xuyên mạng)
+// 🔥 tránh add video trùng
+const addedStreams = new Set();
+
+// 🔥 ICE SERVER
 const config = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -23,7 +26,7 @@ const config = {
   ],
 };
 
-// 🎥 LẤY CAM + MIC (có cam thì lấy, không có vẫn vào được)
+// 🎥 LẤY MEDIA
 async function getMedia() {
   try {
     return await navigator.mediaDevices.getUserMedia({
@@ -45,10 +48,10 @@ getMedia().then((stream) => {
   socket.emit("join-room", { roomId, name });
 });
 
-// 👥 NHẬN DANH SÁCH USER
+// 👥 DANH SÁCH USER
 socket.on("all-users", (users) => {
   users.forEach((user) => {
-    if (user.id !== socket.id) {
+    if (user.id !== socket.id && !peers[user.id]) {
       createPeer(user.id, true);
     }
   });
@@ -56,7 +59,21 @@ socket.on("all-users", (users) => {
 
 // 👤 USER MỚI
 socket.on("user-connected", (user) => {
-  createPeer(user.id, false);
+  if (!peers[user.id]) {
+    createPeer(user.id, false);
+  }
+});
+
+// ❌ USER RỜI
+socket.on("user-disconnected", (id) => {
+  if (peers[id]) {
+    peers[id].close();
+    delete peers[id];
+  }
+
+  // xóa video
+  const video = document.getElementById(id);
+  if (video) video.remove();
 });
 
 // 🔁 SIGNAL
@@ -88,8 +105,9 @@ socket.on("signal", async ({ from, data }) => {
 
 // 🔗 TẠO PEER
 function createPeer(userId, initiator) {
-  const peer = new RTCPeerConnection(config);
+  if (peers[userId]) return peers[userId];
 
+  const peer = new RTCPeerConnection(config);
   peers[userId] = peer;
 
   localStream.getTracks().forEach((track) => {
@@ -97,7 +115,13 @@ function createPeer(userId, initiator) {
   });
 
   peer.ontrack = (e) => {
-    addVideo(e.streams[0]);
+    const stream = e.streams[0];
+
+    // 🔥 tránh add trùng
+    if (addedStreams.has(stream.id)) return;
+    addedStreams.add(stream.id);
+
+    addVideo(stream, false, userId);
   };
 
   peer.onicecandidate = (e) => {
@@ -123,11 +147,16 @@ function createPeer(userId, initiator) {
 }
 
 // 🎥 HIỂN THỊ VIDEO
-function addVideo(stream, mute = false) {
+function addVideo(stream, mute = false, id = null) {
   const video = document.createElement("video");
+
   video.srcObject = stream;
   video.autoplay = true;
+  video.playsInline = true;
   video.muted = mute;
+
+  if (id) video.id = id;
+
   videoGrid.append(video);
 }
 
@@ -137,7 +166,7 @@ function toggleMic() {
   track.enabled = !track.enabled;
 }
 
-// 📷 CAMERA (🔥 bạn vừa thêm)
+// 📷 CAMERA
 function toggleCam() {
   if (!localStream) return;
 
@@ -153,7 +182,7 @@ function leave() {
   window.location.href = "/";
 }
 
-// 🖥️ SHARE MÀN HÌNH
+// 🖥️ SHARE SCREEN
 async function shareScreen() {
   const screen = await navigator.mediaDevices.getDisplayMedia({
     video: true,
