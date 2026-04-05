@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Room</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h3 id="info"></h3>
+
+    <div id="video-grid"></div>
+
+    <div>
+      <button onclick="toggleMic()">Mic</button>
+      <button onclick="leave()">Rời</button>
+      <button onclick="shareScreen()">Share</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

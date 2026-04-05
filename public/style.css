@@ -1,0 +1,73 @@
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+}
+
+/* Body */
+body {
+  background: #0f172a;
+  color: white;
+  text-align: center;
+}
+
+/* Header */
+h3 {
+  margin: 15px;
+}
+
+/* Video grid */
+#video-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+  padding: 20px;
+}
+
+/* Video */
+video {
+  width: 300px;
+  height: 200px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 2px solid #1e293b;
+  background: black;
+}
+
+/* Controls */
+div button {
+  margin: 10px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: 0.2s;
+}
+
+/* Mic */
+button:nth-child(1) {
+  background: #22c55e;
+}
+button:nth-child(1):hover {
+  background: #16a34a;
+}
+
+/* Leave */
+button:nth-child(2) {
+  background: #ef4444;
+}
+button:nth-child(2):hover {
+  background: #dc2626;
+}
+
+/* Share */
+button:nth-child(3) {
+  background: #3b82f6;
+}
+button:nth-child(3):hover {
+  background: #2563eb;
+}

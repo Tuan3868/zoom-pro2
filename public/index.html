@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Join</title>
+  </head>
+  <body>
+    <h2>Vào phòng</h2>
+
+    <input id="name" placeholder="Tên của bạn" /><br /><br />
+    <input id="room" placeholder="ID phòng" /><br /><br />
+
+    <button onclick="join()">Vào</button>
+
+    <script>
+      function join() {
+        const name = document.getElementById("name").value;
+        const room = document.getElementById("room").value;
+
+        if (!name || !room) return alert("Nhập đủ đi bro");
+
+        localStorage.setItem("name", name);
+        localStorage.setItem("room", room);
+
+        window.location.href = "/room.html";
+      }
+    </script>
+  </body>
+</html>
